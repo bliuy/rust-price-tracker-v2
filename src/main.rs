@@ -23,9 +23,7 @@ pub mod scraping_traits {
 
             // Finding the node within the document
             let node = document
-                .select(&selector)
-                .into_iter()
-                .nth(0)
+                .select(&selector).next()
                 .ok_or_else(|| CssError::new("Failed to find Css Node."))?
                 .first_child()
                 .ok_or_else(|| CssError::new("Failed to find Css element."))?
