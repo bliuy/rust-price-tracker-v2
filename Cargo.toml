@@ -7,8 +7,12 @@ edition = "2021"
 
 [dependencies]
 actix-web = "4.3.1"
+async-trait = "0.1.71"
 prost = "0.11.9"
 prost-types = "0.11.9"
+reqwest = "0.11.18"
+scraper = "0.17.1"
+tokio = "1.29.1"
 
 [build-dependencies]
 prost-build = "0.11.9"
