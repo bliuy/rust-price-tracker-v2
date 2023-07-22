@@ -2,11 +2,11 @@ syntax = "proto3";
 
 package Scraping.Requests;
 
-message Requests {
-  repeated Request requests = 1;
+message ScrapingRequests {
+  repeated ScrapingRequest requests = 1;
 }
 
-message Request {
+message ScrapingRequest {
   oneof Source {
     Test test = 1;
     Amzn amzn = 2;

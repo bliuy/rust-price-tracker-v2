@@ -2,12 +2,12 @@ syntax = "proto3";
 
 package Scraping.Results;
 
-message Result {
+message ScrapingResult {
     string source = 1;
     uint64 utc_timestamp = 2;
     string name = 3;
     string identifier = 4;
-    uint64 price = 5;
+    float price = 5;
     map<string, string> attributes = 14;
     map<string, string> metadata = 15;
 }
