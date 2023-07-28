@@ -36,7 +36,7 @@ impl Amzn {
         let price = self.get_product_price(document)?;
 
         // Getting current timestamp
-        let utc_timestamp = <Amzn as BaseTraits>::get_current_utc_time();
+        let utc_timestamp = self.get_current_utc_time();
 
         // Getting source
         let source = self.get_source_name();
@@ -62,7 +62,7 @@ impl Amzn {
         const PRODUCT_TITLE_SELECTOR_STR: &str = "#productTitle";
 
         if let scraper::Node::Text(txt) =
-            <Amzn as BaseTraits>::find_css_node(&document, PRODUCT_TITLE_SELECTOR_STR)?
+            self.find_css_node(&document, PRODUCT_TITLE_SELECTOR_STR)?
         {
             Ok(txt.trim().to_string())
         } else {
@@ -74,7 +74,7 @@ impl Amzn {
         const PRODUCT_PRICE_SELECTOR_STR: &str = ".a-offscreen"; // Contains a text string of the price (e.g. $75.99)
 
         if let scraper::Node::Text(txt) =
-            <Amzn as BaseTraits>::find_css_node(&document, PRODUCT_PRICE_SELECTOR_STR)?
+            self.find_css_node(&document, PRODUCT_PRICE_SELECTOR_STR)?
         {
             let price = txt
                 .trim()
@@ -99,6 +99,13 @@ impl BaseTraits for Amzn {}
 
 #[async_trait]
 impl scraping_traits::Scraper for Amzn {
+    fn get_unique_id(&self) -> String {
+        let product_id = self.get_product_asin_code();
+        let source = self.get_source_name();
+        let unique_id = format!("{} - {}", source, product_id);
+        unique_id
+    }
+
     async fn scrape(
         &self,
         client: &Client,
@@ -109,7 +116,8 @@ impl scraping_traits::Scraper for Amzn {
             .map_err(|e| Box::new(e) as BoxedErr)?; // 'As' used to coerce concrete type into trait object.
 
         // Performing the request
-        let raw_html_string = <Amzn as BaseTraits>::request(client, request, None, None)
+        let raw_html_string = self
+            .request(client, request, None, None)
             .await
             .map_err(|e| Box::new(e) as BoxedErr)?
             .text()

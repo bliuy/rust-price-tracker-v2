@@ -13,7 +13,7 @@ use crate::{errors::CssError, scraping};
 /// All methods implemented here should have a default implementation.
 #[async_trait]
 pub trait BaseTraits {
-    fn find_css_node(document: &Html, selector_str: &str) -> Result<Node, CssError> {
+    fn find_css_node(&self, document: &Html, selector_str: &str) -> Result<Node, CssError> {
         // Creating the selector
         let selector = scraper::Selector::parse(selector_str)?;
 
@@ -30,6 +30,7 @@ pub trait BaseTraits {
     }
 
     async fn request(
+        &self,
         client: &Client,
         request: Request,
         max_retries: Option<u32>,
@@ -70,7 +71,7 @@ pub trait BaseTraits {
         unreachable!()
     }
 
-    fn get_current_utc_time() -> u64 {
+    fn get_current_utc_time(&self) -> u64 {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("Unable to retrieve system time.")
@@ -83,7 +84,10 @@ pub trait Source {
 }
 
 #[async_trait]
-pub trait Scraper: BaseTraits + Source {
+pub trait Scraper: BaseTraits + Source + Send {
+    /// This method should return a unique identifier for the targeted scraping product.
+    fn get_unique_id(&self) -> String;
+
     async fn scrape(
         &self,
         client: &Client,
