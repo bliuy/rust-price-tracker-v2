@@ -1,6 +1,9 @@
 use std::{error::Error, fmt::Display};
 
 use scraper::error::SelectorErrorKind;
+use tokio::sync::mpsc::Receiver;
+
+type BoxedErr = Box<dyn Error + Send>;
 
 #[derive(Debug)]
 pub struct CssError {
@@ -34,4 +37,17 @@ impl From<CssError> for Box<dyn Error + Send> {
     fn from(value: CssError) -> Self {
         Box::new(value) as Box<dyn Error + Send>
     }
+}
+
+pub(crate) async fn spawn_error_handler_service(mut errors_rx: Receiver<BoxedErr>) {
+    // Logging the start of the error handler service
+    println!("Starting error handler service...");
+
+    while let Some(error) = errors_rx.recv().await {
+        // TODO: Implement error handling
+        // Logging the error to the console for now
+        println!("Error: {}", error);
+    }
+
+    unreachable!("Error handler service has exited unexpectedly.")
 }
