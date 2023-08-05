@@ -1,3 +1,5 @@
+use std::error::Error;
+
 use actix_web::{
     guard::{Get, Post},
     web::{self, resource, route},
@@ -5,13 +7,21 @@ use actix_web::{
 };
 use reqwest::ClientBuilder;
 
-use crate::services::{hello_world, scraping_request_handler};
+use crate::{
+    postal::spawn_postal_service,
+    scraping::results::ScrapingResult,
+    services::{hello_world, scraping_request_handler}, errors::spawn_error_handler_service,
+};
 
 pub(crate) mod errors;
 pub(crate) mod pubsub;
 pub mod scraping;
 pub mod scraping_traits;
 pub mod sources;
+pub(crate) mod postal;
+pub(crate) mod services;
+
+type BoxedErr = Box<dyn Error + Send>;
 
 #[actix_web::main]
 async fn main() {
@@ -21,8 +31,26 @@ async fn main() {
     // Logging service start
     println!("Scraper service starting.");
 
+    // Creating the errors channel
+    // This channel will handle all errors that are generated during the runtime of this serivce.
+    let (errors_tx, errors_rx) = tokio::sync::mpsc::channel::<BoxedErr>(1024);
+
+    // Creating channels for postal svc
+    // The postal service will be responsible for the processing of the outbound messages
+    let (postal_tx, postal_rx) = tokio::sync::mpsc::channel::<ScrapingResult>(1024);
+
+    // Spawning the postal service
+    let postal_svc_errors_tx = errors_tx.clone();
+    tokio::task::spawn(async move { spawn_postal_service(postal_rx, postal_svc_errors_tx).await });
+
+    // Spawning the error handler service
+    tokio::task::spawn(async move {
+        spawn_error_handler_service(errors_rx).await;
+    });
+
+
     // Starting up the HTTPServer
-    HttpServer::new(|| {
+    HttpServer::new(move || {
         // Constructing reqwest client service
         let req_client = ClientBuilder::new()
             .user_agent(USER_AGENT)
@@ -32,6 +60,8 @@ async fn main() {
         // Constructing the App instance
         App::new()
             .app_data(web::Data::new(req_client))
+            .app_data(web::Data::new(postal_tx.clone())) // Wrapped in a ARC
+            .app_data(web::Data::new(errors_tx.clone())) // Wrapped in a ARC
             .service(resource("/hello-world").route(route().guard(Get()).to(hello_world)))
             .service(
                 resource("/scraping-request")
@@ -47,117 +77,6 @@ async fn main() {
     unreachable!()
 }
 
-pub(crate) mod services {
-    use std::error::Error;
 
-    use actix_web::{
-        web::{Data, Json},
-        HttpResponse, Responder,
-    };
-    use reqwest::Client;
-    use tokio::sync::mpsc::Sender;
 
-    use crate::{
-        pubsub::PubSubMessage, scraping::results::ScrapingResult, scraping_traits::Scraper,
-    };
 
-    pub(crate) async fn hello_world() -> impl Responder {
-        HttpResponse::Ok().body("Hello World!")
-    }
-
-    pub(crate) async fn scraping_request_handler(
-        json_payload: Json<PubSubMessage>,
-        request_client: Data<Client>,
-        result_channel: Data<Sender<ScrapingResult>>,
-        failed_channel: Data<Sender<Box<dyn Error + Send>>>,
-    ) -> impl Responder {
-        // Decoding the inner payload
-        let payload = json_payload.into_inner();
-
-        // Unpacking the scraping requests
-        let scraping_requests = match payload.get_scraping_requests() {
-            Ok(i) => i,
-            Err(e) => return HttpResponse::BadRequest().body::<String>(e.to_string()),
-        };
-        let request_count = scraping_requests.len();
-
-        // Spawning a separate async thread to execute the scraping requests
-        tokio::task::spawn(async move {
-            scraping_request(
-                scraping_requests,
-                request_client,
-                result_channel,
-                failed_channel,
-            )
-            .await
-        });
-
-        let response_msg = format!(
-            "Scraping requests acknowleged.\nNumber of scraping requests recieved: {}",
-            request_count
-        );
-        HttpResponse::Ok().body(response_msg)
-    }
-
-    pub(crate) async fn scraping_request(
-        scraping_requests: Vec<Box<dyn Scraper + Send>>,
-        request_client: Data<Client>,
-        result_channel: Data<Sender<ScrapingResult>>,
-        failed_channel: Data<Sender<Box<dyn Error + Send>>>,
-    ) -> () {
-        let mut tasks = tokio::task::JoinSet::new();
-        for req in scraping_requests.into_iter() {
-            let client = request_client.clone();
-
-            // Spawning a separate task
-            tasks.spawn(async move {
-                let req = req.scrape(&client);
-                req.await
-            });
-        }
-
-        while let Some(thread_res) = tasks.join_next().await {
-            match thread_res {
-                Ok(res) => match res {
-                    Ok(i) => {
-                        match result_channel.send(i).await {
-                            Ok(_) => {}
-                            Err(e) => {
-                                println!("Error occured when sending the ScrapingResult across the mpsc channel. See error:");
-                                println!("{}", e);
-                            }
-                        };
-                    }
-                    Err(e) => match failed_channel.send(e).await {
-                        Ok(_) => {}
-                        Err(internal_err) => {
-                            println!("Error occured when sending the ScrapingResult across the mpsc channel. See error:");
-                            println!("{}", internal_err);
-                        }
-                    },
-                },
-                Err(e) => {
-                    println!("JoinError encountered. See error below:");
-                    println!("{}", e);
-                }
-            }
-        }
-
-        todo!()
-    }
-}
-
-pub(crate) mod postal {
-    use tokio::sync::mpsc;
-
-    // async fn spawn_postal_service() -> mpsc::Sender<()> {
-    //     // Logging the spawn request
-    //     println!("Starting up postal service.");
-
-    //     // Creating the channels
-    //     let (tx, rx) = mpsc::channel(1024);
-
-    //     // Spawning a separate thread that will run indefinitely
-
-    // }
-}
