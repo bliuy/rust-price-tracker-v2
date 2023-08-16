@@ -8,25 +8,26 @@ use actix_web::{
 use reqwest::ClientBuilder;
 
 use crate::{
+    errors::spawn_error_handler_service,
     postal::spawn_postal_service,
     scraping::results::ScrapingResult,
-    services::{hello_world, scraping_request_handler}, errors::spawn_error_handler_service,
+    services::{hello_world, scraping_request_handler},
 };
 
 pub(crate) mod errors;
+pub(crate) mod postal;
 pub(crate) mod pubsub;
 pub mod scraping;
 pub mod scraping_traits;
-pub mod sources;
-pub(crate) mod postal;
 pub(crate) mod services;
+pub mod sources;
 
 type BoxedErr = Box<dyn Error + Send>;
 
 #[actix_web::main]
 async fn main() {
     // Defining consts
-    const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/47.0.2526.111 Safari/537.36";
+    let USER_AGENT: String = std::env::var("USER_AGENT").expect("Missing USER_AGENT env variable.");
 
     // Logging service start
     println!("Scraper service starting.");
@@ -48,12 +49,11 @@ async fn main() {
         spawn_error_handler_service(errors_rx).await;
     });
 
-
     // Starting up the HTTPServer
     HttpServer::new(move || {
         // Constructing reqwest client service
         let req_client = ClientBuilder::new()
-            .user_agent(USER_AGENT)
+            .user_agent(&USER_AGENT)
             .build()
             .expect("Failed to build reqwest client.");
 
@@ -74,9 +74,5 @@ async fn main() {
     .await
     .expect("Failed to start up HTTP server.");
 
-    unreachable!()
+    // unreachable!()
 }
-
-
-
-
