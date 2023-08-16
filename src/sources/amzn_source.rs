@@ -76,9 +76,14 @@ impl Amzn {
         if let scraper::Node::Text(txt) =
             self.find_css_node(&document, PRODUCT_PRICE_SELECTOR_STR)?
         {
-            let price = txt
+            let cleaned_txt = txt
                 .trim()
                 .replace("$", "")
+                .replace(",", "")
+                .replace("S", "")
+                .replace("\"", "");
+
+            let price = cleaned_txt
                 .parse::<f32>()
                 .map_err(|e| Box::new(e) as BoxedErr)?;
             Ok(price)
