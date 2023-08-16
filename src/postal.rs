@@ -1,14 +1,19 @@
 use reqwest::Client;
 use tokio::sync::mpsc::{Receiver, Sender};
 
-use crate::{pubsub::OutboundPubSubPayload, scraping::results::ScrapingResult, BoxedErr};
+use crate::{
+    pubsub::{get_access_token, OutboundPubSubPayload},
+    scraping::results::ScrapingResult,
+    BoxedErr,
+};
 
 pub(crate) async fn spawn_postal_service(
     mut postal_rx: Receiver<ScrapingResult>,
     errors_tx: Sender<BoxedErr>,
 ) {
     // CONSTANTS
-    const PUBLISH_TOPIC: &str = "";
+    let PUBLISH_TOPIC_ENDPOINT: String =
+        std::env::var("PUBLISH_TOPIC").expect("Missing PUBLISH_TOPIC env variable.");
 
     // Logging
     println!("Starting up postal service.");
@@ -25,16 +30,18 @@ pub(crate) async fn spawn_postal_service(
                 let mut count = 0;
                 loop {
                     count += 1; // Incrementing the count
-                    match publish_payload(&client, PUBLISH_TOPIC, serialized_payload.clone())
-                        .await
+                    match publish_payload(
+                        &client,
+                        &PUBLISH_TOPIC_ENDPOINT,
+                        serialized_payload.clone(),
+                    )
+                    .await
                     {
                         Ok(response) if response.status().is_success() => {
                             match deserialize_response(response).await {
                                 Ok(deserialized_response) => {
                                     // Simply logging the response for now
-                                    println!(
-                                        "Successfully published payload. See response below:"
-                                    );
+                                    println!("Successfully published payload. See response below:");
                                     println!("{:#?}", deserialized_response);
                                 }
                                 Err(e) => {
@@ -85,8 +92,17 @@ async fn publish_payload(
     topic: &str,
     serialized_payload: String,
 ) -> Result<reqwest::Response, reqwest::Error> {
+    // Getting the access token
+    let auth_details = get_access_token(client)
+        .await
+        .expect("Failed to get access token.");
+
     client
         .post(topic)
+        .header(
+            "Authorization",
+            format!("Bearer {}", auth_details.access_token),
+        )
         .body(serialized_payload)
         .send()
         .await?
