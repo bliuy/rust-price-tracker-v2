@@ -5,7 +5,7 @@ use reqwest::Client;
 
 use crate::{
     scraping::{self, requests::Test},
-    scraping_traits::{self, BaseTraits, Scraper},
+    scraping_traits::{self, BaseTraits},
 };
 
 impl scraping_traits::Source for scraping::requests::Test {
