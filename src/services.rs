@@ -8,8 +8,7 @@ use reqwest::Client;
 use tokio::sync::mpsc::Sender;
 
 use crate::{
-    pubsub::PubSubMessage, scraping::results::ScrapingResult, scraping_traits::Scraper,
-    BoxedErr,
+    pubsub::PubSubMessage, scraping::results::ScrapingResult, scraping_traits::Scraper, BoxedErr,
 };
 
 pub(crate) async fn hello_world() -> impl Responder {
@@ -56,7 +55,10 @@ pub(crate) async fn scraping_request(
     result_channel: Data<Sender<ScrapingResult>>,
     failed_channel: Data<Sender<BoxedErr>>,
 ) -> () {
+    println!("Processing scraping request.");
+
     let mut tasks = tokio::task::JoinSet::new();
+    println!("Number of scraping requests: {}", scraping_requests.len());
     for req in scraping_requests.into_iter() {
         let client = request_client.clone();
 
@@ -94,5 +96,5 @@ pub(crate) async fn scraping_request(
         }
     }
 
-    ()
+    println!("Scraping request processed.");
 }
