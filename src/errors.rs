@@ -46,7 +46,7 @@ pub(crate) async fn spawn_error_handler_service(mut errors_rx: Receiver<BoxedErr
     while let Some(error) = errors_rx.recv().await {
         // TODO: Implement error handling
         // Logging the error to the console for now
-        println!("Error: {}", error);
+        eprintln!("Error: {}", error);
     }
 
     unreachable!("Error handler service has exited unexpectedly.")
